@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Video processing pipeline for ClipNest",
   "scripts": {
-    "deploy": "bash supabase/deploy.sh",
+    "deploy": "bash scripts/deploy.sh",
     "logs:router": "supabase functions logs ingest-router --tail",
     "logs:enrich": "supabase functions logs enrich-video --tail"
   },
