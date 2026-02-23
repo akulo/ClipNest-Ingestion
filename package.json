@@ -1,0 +1,20 @@
+{
+  "name": "clipnest-ingestion",
+  "version": "1.0.0",
+  "description": "Video processing pipeline for ClipNest",
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file=.env.local --import tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2",
+    "dotenv": "^16",
+    "openai": "^4"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "tsx": "^4",
+    "typescript": "^5"
+  }
+}
