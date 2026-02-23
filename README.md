@@ -6,21 +6,21 @@ Supabase Edge Function pipeline that automatically enriches new `clipnest_videos
 
 ```mermaid
 flowchart TD
-    DB[(clipnest_videos\nINSERT)]
-    DB -->|Database Webhook| IR[ingest-router\ndetect platform]
+    DB[("clipnest_videos\nINSERT")]
+    DB -->|Database Webhook| IR["ingest-router\ndetect platform"]
 
-    IR -->|youtube / shorts| SY[scrape-youtube\nScrapeCreators API]
-    IR -->|tiktok| ST[scrape-tiktok\nScrapeCreators API]
-    IR -->|instagram| SI[scrape-instagram\nScrapeCreators API]
+    IR -->|youtube / shorts| SY["scrape-youtube\nScrapeCreators API"]
+    IR -->|tiktok| ST["scrape-tiktok\nScrapeCreators API"]
+    IR -->|instagram| SI["scrape-instagram\nScrapeCreators API"]
 
     SY --> EV[enrich-video]
     ST --> EV
     SI --> EV
 
-    EV --> Q{transcript\nfound?}
-    Q -->|no| PU[Partial update\nplatform · creator · title]
-    Q -->|yes| OAI[OpenAI gpt-4o-mini\ntext-embedding-3-small]
-    OAI --> FU[Full update\nsummary · sentiment · tags\ncategories · embedding]
+    EV --> Q{"transcript\nfound?"}
+    Q -->|no| PU["Partial update\nplatform · creator · title"]
+    Q -->|yes| OAI["OpenAI gpt-4o-mini\ntext-embedding-3-small"]
+    OAI --> FU["Full update\nsummary · sentiment · tags\ncategories · embedding"]
 
     classDef db        fill:#1e3a5f,stroke:#3b82f6,color:#fff
     classDef router    fill:#4c1d95,stroke:#8b5cf6,color:#fff
