@@ -44,7 +44,7 @@ Inter-function calls use `fetch` to `${SUPABASE_URL}/functions/v1/<name>` with `
 | `SCRAPECREATORS_API_KEY` | ScrapeCreators API key — used by scraper functions |
 | `OPENAI_API_KEY` | OpenAI API key — used by `enrich-video` |
 
-## DB Schema Highlights (`supabase/clipnest_videos.sql`)
+## DB Schema Highlights (`sql/clipnest_videos.sql`)
 - `id` (uuid), `video_url`, `platform`, `normalized_url`, `creator`, `title`, `summary`, `sentiment`
 - `tags` (text[]), `categories` (text[]), `transcript_text`, `transcript_url`, `transcript_preview`
 - `embedding` (extensions.vector — 1536 dims), `published`, `source` (default `'replit'`)
