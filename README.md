@@ -21,6 +21,22 @@ flowchart TD
     Q -->|no| PU[Partial update\nplatform · creator · title]
     Q -->|yes| OAI[OpenAI gpt-4o-mini\ntext-embedding-3-small]
     OAI --> FU[Full update\nsummary · sentiment · tags\ncategories · embedding]
+
+    classDef db        fill:#1e3a5f,stroke:#3b82f6,color:#fff
+    classDef router    fill:#4c1d95,stroke:#8b5cf6,color:#fff
+    classDef scraper   fill:#134e4a,stroke:#14b8a6,color:#fff
+    classDef enricher  fill:#7c2d12,stroke:#f97316,color:#fff
+    classDef ai        fill:#713f12,stroke:#eab308,color:#fff
+    classDef partial   fill:#374151,stroke:#9ca3af,color:#fff
+    classDef full      fill:#14532d,stroke:#22c55e,color:#fff
+
+    class DB db
+    class IR router
+    class SY,ST,SI scraper
+    class EV,Q enricher
+    class OAI ai
+    class PU partial
+    class FU full
 ```
 
 ## Functions
