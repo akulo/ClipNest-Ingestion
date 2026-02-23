@@ -1,120 +1,37 @@
 # ClipNest-Ingestion
 
-A TypeScript/Node.js service that monitors the `clipnest_videos` Supabase table for new rows and automatically enriches them with transcript, metadata, AI analysis, and vector embeddings.
+Supabase Edge Function pipeline that automatically enriches new `clipnest_videos` rows with transcript, metadata, AI analysis, and vector embeddings — triggered by a Database Webhook on every INSERT.
 
-Two deployment modes are available — a long-running Node.js process and a serverless Supabase Edge Function.
+## Flow
 
-## How It Works
+```mermaid
+flowchart TD
+    DB[(clipnest_videos\nINSERT)]
+    DB -->|Database Webhook| IR[ingest-router\ndetect platform]
 
-1. **Startup**: Scans for existing rows with `transcript_text IS NULL` and processes them.
-2. **Realtime**: Subscribes to Supabase Postgres CDC for `INSERT` events on `clipnest_videos`.
-3. **Pipeline** (per video):
-   - Fetches transcript + metadata via [ScrapeCreators](https://scrapecreators.com) (YouTube, TikTok, Instagram)
-   - Enriches with OpenAI `gpt-4o-mini`: summary, sentiment, tags, categories
-   - Generates a 1536-dim vector embedding via `text-embedding-3-small`
-   - Updates all columns in the Supabase row
+    IR -->|youtube / shorts| SY[scrape-youtube\nScrapeCreators API]
+    IR -->|tiktok| ST[scrape-tiktok\nScrapeCreators API]
+    IR -->|instagram| SI[scrape-instagram\nScrapeCreators API]
 
-## Project Structure
+    SY --> EV[enrich-video]
+    ST --> EV
+    SI --> EV
 
-```
-src/
-  index.ts        — Entry point: startup scan + Supabase Realtime listener
-  processor.ts    — Pipeline orchestration per video
-  scraper.ts      — ScrapeCreators API client (YouTube, TikTok, Instagram)
-  enricher.ts     — OpenAI enrichment + embeddings
-  types.ts        — Shared interfaces
-  clipnest_videos.sql — DB schema reference
-
-supabase/
-  functions/
-    process-video/
-      index.ts    — Deno Edge Function (same pipeline, triggered by Database Webhook)
+    EV --> Q{transcript\nfound?}
+    Q -->|no| PU[Partial update\nplatform · creator · title]
+    Q -->|yes| OAI[OpenAI gpt-4o-mini\ntext-embedding-3-small]
+    OAI --> FU[Full update\nsummary · sentiment · tags\ncategories · embedding]
 ```
 
-## Option A — Node.js Long-Running Process
+## Functions
 
-### Prerequisites
-
-- Node.js 18+
-- A Supabase project with the `clipnest_videos` table (see `src/clipnest_videos.sql`)
-- API keys for Supabase, ScrapeCreators, and OpenAI
-
-### Setup
-
-```bash
-# 1. Install dependencies
-npm install
-
-# 2. Configure environment
-cp .env.local.example .env.local
-# Fill in your keys
-
-# 3. Run
-npm start
-```
-
-### Environment Variables
-
-| Variable | Description |
+| Function | Responsibility |
 |---|---|
-| `SUPABASE_URL` | Your Supabase project URL |
-| `SUPABASE_SERVICE_KEY` | Supabase service role key (bypasses RLS) |
-| `SCRAPECREATORS_API_KEY` | ScrapeCreators API key |
-| `OPENAI_API_KEY` | OpenAI API key |
-
-The service logs progress per video and runs indefinitely until interrupted with `Ctrl+C`. Logs are also written to `logs/app-YYYY-MM-DD.log`.
-
----
-
-## Option B — Supabase Edge Function (Serverless)
-
-The Edge Function `supabase/functions/process-video/index.ts` runs the same pipeline serverlessly, triggered by a Supabase Database Webhook on every INSERT into `clipnest_videos`. No process needs to stay running.
-
-### Prerequisites
-
-- [Supabase CLI](https://supabase.com/docs/guides/cli) installed
-- Logged in: `supabase login` (get your access token from [supabase.com](https://supabase.com) → Account → Access Tokens)
-
-### Deploy
-
-```bash
-# Link to your Supabase project (first time only)
-supabase link --project-ref <your-project-ref>
-
-# Deploy the function
-supabase functions deploy process-video
-
-# Set required secrets
-supabase secrets set \
-  SCRAPECREATORS_API_KEY=<your-key> \
-  OPENAI_API_KEY=<your-key> \
-  SUPABASE_SERVICE_ROLE_KEY=<your-service-role-key>
-```
-
-### Configure the Database Webhook
-
-In the Supabase Dashboard → **Database → Webhooks → Create a new hook**:
-
-| Field | Value |
-|---|---|
-| Name | `process-video` |
-| Table | `clipnest_videos` |
-| Events | INSERT |
-| Type | HTTP Request (POST) |
-| URL | `https://<project-ref>.supabase.co/functions/v1/process-video` |
-| Header: `Authorization` | `Bearer <your-anon-key>` |
-
-Find your values:
-- **Project ref**: Dashboard → Settings → General → Reference ID
-- **Anon key**: Dashboard → Settings → API → `anon public`
-
-### Verify
-
-1. Insert a test row into `clipnest_videos` with a `video_url` and `transcript_text = null`
-2. Check logs: Dashboard → Edge Functions → `process-video` → Logs
-3. Confirm the row is updated with transcript, summary, sentiment, tags, categories, and embedding
-
----
+| `ingest-router` | Validates INSERT webhook, detects platform, fans out to scraper |
+| `scrape-youtube` | Fetches transcript + metadata in parallel via ScrapeCreators |
+| `scrape-tiktok` | Fetches transcript + metadata via ScrapeCreators |
+| `scrape-instagram` | Fetches transcript + metadata via ScrapeCreators |
+| `enrich-video` | OpenAI enrichment + 1536-dim embedding + Supabase DB update |
 
 ## Supported Platforms
 
@@ -124,3 +41,58 @@ Find your values:
 | YouTube Shorts | `youtube.com/shorts/` |
 | TikTok | `tiktok.com` |
 | Instagram | `instagram.com` |
+
+## Deploy
+
+### One-time setup
+```bash
+supabase login
+supabase link --project-ref <project-ref>
+supabase secrets set \
+  SCRAPECREATORS_API_KEY=<key> \
+  OPENAI_API_KEY=<key> \
+  SUPABASE_SERVICE_ROLE_KEY=<key>
+```
+
+### Deploy all functions
+```bash
+npm run deploy
+```
+
+### Configure the Database Webhook
+In the Supabase Dashboard → **Database → Webhooks → Create a new hook**:
+
+| Field | Value |
+|---|---|
+| Table | `clipnest_videos` |
+| Events | INSERT |
+| URL | `https://<project-ref>.supabase.co/functions/v1/ingest-router` |
+| Header: `Authorization` | `Bearer <anon-key>` |
+
+## Logs
+```bash
+npm run logs:router   # tail ingest-router
+npm run logs:enrich   # tail enrich-video
+supabase functions logs <name> --tail
+```
+
+## Project Structure
+
+```
+supabase/
+  functions/
+    ingest-router/      — webhook entry point
+    scrape-youtube/     — YouTube + Shorts scraper
+    scrape-tiktok/      — TikTok scraper
+    scrape-instagram/   — Instagram scraper
+    enrich-video/       — OpenAI enrichment + DB update
+    _shared/
+      types.ts          — shared interfaces
+      utils.ts          — shared helpers
+      deno.d.ts         — Deno ambient types for VS Code
+  process-video/        — legacy monolithic function (kept for reference)
+scripts/
+  deploy.sh             — deploys all functions
+sql/
+  clipnest_videos.sql   — DB schema reference
+```
