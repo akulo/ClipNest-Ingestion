@@ -1,12 +1,15 @@
 #!/bin/bash
 set -e
 
+# Load local env (not committed to git)
+if [ -f .env.local ]; then
+  set -a && source .env.local && set +a
+fi
+
 echo "Deploying Edge Functions..."
 
 supabase functions deploy ingest-router
-supabase functions deploy scrape-youtube
-supabase functions deploy scrape-tiktok
-supabase functions deploy scrape-instagram
-supabase functions deploy enrich-video
+supabase functions deploy scrape-worker
+supabase functions deploy enrich-worker
 
 echo "All functions deployed."

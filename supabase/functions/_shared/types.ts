@@ -14,6 +14,11 @@ export interface EnrichmentResult {
   sentiment: "positive" | "negative" | "neutral" | "mixed";
   tags: string[];
   categories: string[];
+  venue: string | null;
+  address: string | null;
+  city: string | null;
+  neighborhood: string | null;
+  price: string | null;
 }
 
 /** Router → scraper */
@@ -26,4 +31,20 @@ export interface ScraperPayload {
 export interface EnricherPayload {
   id: string;
   videoData: VideoData;
+}
+
+export enum ProcessingStatus {
+  Pending = "pending",
+  Scraping = "scraping",
+  Enriching = "enriching",
+  Done = "done",
+  Failed = "failed",
+}
+
+export interface QueueMessage<T> {
+  msg_id: number;
+  read_ct: number;
+  enqueued_at: string;
+  vt: string;
+  message: T;
 }

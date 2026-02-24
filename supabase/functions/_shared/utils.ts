@@ -1,4 +1,5 @@
-import type { VideoData } from "./types.ts";
+import type { VideoData, QueueMessage } from "./types.ts";
+import type { SupabaseClient } from "npm:@supabase/supabase-js";
 
 const SCRAPECREATORS_BASE_URL = "https://api.scrapecreators.com";
 
@@ -28,6 +29,48 @@ export async function apiFetch(path: string, apiKey: string): Promise<unknown> {
     throw new Error(`ScrapeCreators API error ${response.status}: ${text}`);
   }
   return response.json();
+}
+
+// ── PGMQ helpers ──────────────────────────────────────────────────────────────
+
+export async function queueSend<T>(
+  supabase: SupabaseClient,
+  queueName: string,
+  payload: T
+): Promise<number> {
+  const { data, error } = await supabase.rpc("queue_send", {
+    queue_name: queueName,
+    message: payload,
+  });
+  if (error) throw new Error(`queue_send failed: ${error.message}`);
+  return data as number;
+}
+
+export async function queueRead<T>(
+  supabase: SupabaseClient,
+  queueName: string,
+  vtSeconds: number,
+  qty = 1
+): Promise<QueueMessage<T>[]> {
+  const { data, error } = await supabase.rpc("queue_read", {
+    queue_name: queueName,
+    vt_seconds: vtSeconds,
+    qty,
+  });
+  if (error) throw new Error(`queue_read failed: ${error.message}`);
+  return (data ?? []) as QueueMessage<T>[];
+}
+
+export async function queueArchive(
+  supabase: SupabaseClient,
+  queueName: string,
+  msgId: number
+): Promise<void> {
+  const { error } = await supabase.rpc("queue_archive", {
+    queue_name: queueName,
+    msg_id: msgId,
+  });
+  if (error) throw new Error(`queue_archive failed: ${error.message}`);
 }
 
 /** Fire-and-forget inter-function call. Returns the response for optional logging. */
