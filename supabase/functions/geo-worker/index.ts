@@ -7,20 +7,19 @@ const MAPBOX_GEOCODING_URL = "https://api.mapbox.com/geocoding/v5/mapbox.places"
 // ── Geo helpers ───────────────────────────────────────────────────────────────
 
 /** Build a Mapbox query string from available location fields.
- *  Returns null if there's not enough specificity to geocode reliably. */
+ *  Returns null only if there is nothing at all to search with. */
 function buildGeoQuery(
   venue: string | null,
   address: string | null,
   city: string | null,
   neighborhood: string | null
 ): string | null {
-  // Prefer address over venue for the place part
-  const place = address ?? venue;
-  const geo = city ?? neighborhood;
-
-  if (place && geo) return `${place}, ${geo}`;
-  // venue + city is enough; bare city or bare venue is too vague
-  return null;
+  const parts: string[] = [];
+  if (address) parts.push(address);
+  else if (venue) parts.push(venue);
+  if (city) parts.push(city);
+  else if (neighborhood) parts.push(neighborhood);
+  return parts.length > 0 ? parts.join(", ") : null;
 }
 
 interface MapboxFeature {
@@ -67,7 +66,12 @@ Deno.serve(async (_req: Request) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const functionKey = Deno.env.get("CLIPNEST_FUNCTION_KEY")!;
-  const mapboxToken = Deno.env.get("MAPBOX_ACCESS_TOKEN")!;
+  const mapboxToken = Deno.env.get("MAPBOX_ACCESS_TOKEN");
+
+  if (!mapboxToken) {
+    console.error("[geo-worker] MAPBOX_ACCESS_TOKEN is not set — cannot geocode");
+    return new Response("Missing MAPBOX_ACCESS_TOKEN", { status: 500 });
+  }
 
   const supabase = createClient(supabaseUrl, serviceRoleKey);
 
@@ -82,18 +86,24 @@ Deno.serve(async (_req: Request) => {
   const { msg_id, message: { id, venue, address, city, neighborhood } } = msg;
 
   console.log(`[geo-worker] Processing msg ${msg_id} for video ${id}`);
+  console.log(`[geo-worker] Location fields — venue: ${venue ?? "null"}, address: ${address ?? "null"}, city: ${city ?? "null"}, neighborhood: ${neighborhood ?? "null"}`);
+
+  // Only include non-null text fields so we never overwrite existing DB values with null
+  const textFields: Record<string, string> = {};
+  if (venue !== null) textFields.venue = venue;
+  if (address !== null) textFields.address = address;
+  if (city !== null) textFields.city = city;
+  if (neighborhood !== null) textFields.neighborhood = neighborhood;
 
   try {
     const query = buildGeoQuery(venue, address, city, neighborhood);
 
     if (!query) {
       console.log(`[geo-worker] No geocodable location data for video ${id} — writing text fields only`);
-      const { error: textError } = await supabase
-        .from("clipnest_videos")
-        .update({ venue, address, city, neighborhood })
-        .eq("id", id);
-      if (textError) throw textError;
-      await queueArchive(supabase, "geo_jobs", msg_id);
+      if (Object.keys(textFields).length > 0) {
+        const { error } = await supabase.from("clipnest_videos").update(textFields).eq("id", id);
+        if (error) throw error;
+      }
     } else {
       console.log(`[geo-worker] Geocoding "${query}" for video ${id}`);
       const coords = await geocode(query, mapboxToken);
@@ -106,13 +116,13 @@ Deno.serve(async (_req: Request) => {
 
       const { error } = await supabase
         .from("clipnest_videos")
-        .update({ venue, address, city, neighborhood, ...(coords ?? {}) })
+        .update({ ...textFields, ...(coords ?? {}) })
         .eq("id", id);
       if (error) throw error;
-
-      await queueArchive(supabase, "geo_jobs", msg_id);
-      console.log(`[geo-worker] Done for video ${id}`);
     }
+
+    await queueArchive(supabase, "geo_jobs", msg_id);
+    console.log(`[geo-worker] Done for video ${id}`);
 
     // Chain-invoke self to drain the queue
     callFunction("geo-worker", {}, supabaseUrl, functionKey).catch((err) => {
@@ -122,8 +132,12 @@ Deno.serve(async (_req: Request) => {
     return new Response("OK", { status: 200 });
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
-    console.error(`[geo-worker] Geocoding failed for video ${id} (skipping):`, errorMsg);
-    // Best-effort — archive anyway so the job doesn't retry
+    console.error(`[geo-worker] Failed for video ${id} (skipping):`, errorMsg);
+    // Best-effort: still write text fields even if Mapbox failed
+    if (Object.keys(textFields).length > 0) {
+      await supabase.from("clipnest_videos").update(textFields).eq("id", id).catch(() => {});
+    }
+    // Archive so the job doesn't retry
     await queueArchive(supabase, "geo_jobs", msg_id).catch(() => {});
     return new Response("OK", { status: 200 });
   }

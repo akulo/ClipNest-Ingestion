@@ -16,16 +16,22 @@ async function enrichTranscript(transcript: string, openai: OpenAI): Promise<Enr
       {
         role: "system",
         content:
-          "You are a video content analyst. Given a video transcript, return a JSON object with these fields: " +
-          '"summary" (2-3 sentence summary), ' +
-          '"sentiment" (one of: positive, negative, neutral, mixed), ' +
-          '"tags" (array of 5-10 relevant keyword strings), ' +
-          '"categories" (array of 1-3 broad topic category strings), ' +
-          '"venue" (name of the venue/place — use transcript if mentioned, otherwise infer from context or your knowledge, or null), ' +
-          '"address" (street address — use transcript if mentioned, otherwise infer from your knowledge of the venue, or null), ' +
-          '"city" (city name — use transcript if mentioned, otherwise infer from your knowledge of the venue, or null), ' +
-          '"neighborhood" (neighborhood/district — use transcript if mentioned, otherwise infer from your knowledge of the venue, or null), ' +
-          '"price" (price or price range if mentioned e.g. "$20" or "$10-$30", or null).',
+          "You are an expert food, travel, and lifestyle content analyst. " +
+          "Given a video transcript, return a JSON object with exactly these fields:\n\n" +
+          '"summary": 2-3 sentence summary of the video.\n' +
+          '"sentiment": one of: positive, negative, neutral, mixed.\n' +
+          '"tags": array of 5-10 relevant keyword strings.\n' +
+          '"categories": array of 1-3 broad topic category strings.\n' +
+          '"price": price or price range if mentioned (e.g. "$20" or "$10-$30"), otherwise null.\n\n' +
+          "For the location fields below, use a strict priority order:\n" +
+          "1. Extract directly from the transcript if explicitly stated.\n" +
+          "2. Infer from strong context clues (e.g. area code, landmarks, street names mentioned).\n" +
+          "3. Use your training knowledge — if the venue name is well-known (e.g. a famous restaurant, landmark, or chain), you likely know its address, city, and neighborhood. Use that knowledge confidently.\n" +
+          "Only return null if you have genuinely no basis to determine the value after trying all three.\n\n" +
+          '"venue": the name of the specific restaurant, bar, cafe, shop, or place featured. null if none.\n' +
+          '"address": full street address (e.g. "123 Main St"). null if unknown after best effort.\n' +
+          '"city": city name (e.g. "New York", "Los Angeles"). null if unknown after best effort.\n' +
+          '"neighborhood": neighborhood or district (e.g. "SoHo", "Silver Lake"). null if unknown after best effort.',
       },
       {
         role: "user",
