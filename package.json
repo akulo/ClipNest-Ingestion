@@ -6,7 +6,8 @@
     "deploy": "bash scripts/deploy.sh",
     "logs:router": "supabase functions logs ingest-router --tail",
     "logs:scraper": "supabase functions logs scrape-worker --tail",
-    "logs:enrich": "supabase functions logs enrich-worker --tail"
+    "logs:enrich": "supabase functions logs enrich-worker --tail",
+    "logs:geo": "supabase functions logs geo-worker --tail"
   },
   "devDependencies": {
     "@deno/types": "^0.0.1",

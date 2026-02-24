@@ -1,8 +1,8 @@
 import { createClient } from "npm:@supabase/supabase-js";
 import OpenAI from "npm:openai";
 import { ProcessingStatus } from "../_shared/types.ts";
-import type { EnricherPayload, EnrichmentResult, VideoData } from "../_shared/types.ts";
-import { callFunction, queueArchive, queueRead } from "../_shared/utils.ts";
+import type { EnricherPayload, EnrichmentResult, GeoPayload, VideoData } from "../_shared/types.ts";
+import { callFunction, queueArchive, queueRead, queueSend } from "../_shared/utils.ts";
 
 const POISON_PILL_THRESHOLD = 3;
 
@@ -149,6 +149,21 @@ Deno.serve(async (_req: Request) => {
 
       await queueArchive(supabase, "enrich_jobs", msg_id);
       console.log(`[enrich-worker] Successfully enriched row ${id}`);
+
+      // Enqueue geo lookup (best-effort — fire and forget errors)
+      const geoPayload: GeoPayload = {
+        id,
+        venue: enrichment.venue,
+        address: enrichment.address,
+        city: enrichment.city,
+        neighborhood: enrichment.neighborhood,
+      };
+      await queueSend(supabase, "geo_jobs", geoPayload).catch((err) => {
+        console.error("[enrich-worker] Failed to enqueue geo job:", err);
+      });
+      callFunction("geo-worker", {}, supabaseUrl, functionKey).catch((err) => {
+        console.error("[enrich-worker] Failed to wake geo-worker:", err);
+      });
     }
 
     // Chain-invoke self to drain the queue

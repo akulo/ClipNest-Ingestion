@@ -9,6 +9,7 @@ CREATE EXTENSION IF NOT EXISTS pgmq;
 
 SELECT pgmq.create('scrape_jobs');
 SELECT pgmq.create('enrich_jobs');
+SELECT pgmq.create('geo_jobs');
 
 -- ── 3. Add status columns to clipnest_videos ──────────────────────────────────
 

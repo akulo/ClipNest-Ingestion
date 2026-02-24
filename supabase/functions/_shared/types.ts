@@ -33,6 +33,15 @@ export interface EnricherPayload {
   videoData: VideoData;
 }
 
+/** Enricher → geo-worker */
+export interface GeoPayload {
+  id: string;
+  venue: string | null;
+  address: string | null;
+  city: string | null;
+  neighborhood: string | null;
+}
+
 export enum ProcessingStatus {
   Pending = "pending",
   Scraping = "scraping",

@@ -11,5 +11,6 @@ echo "Deploying Edge Functions..."
 supabase functions deploy ingest-router
 supabase functions deploy scrape-worker
 supabase functions deploy enrich-worker
+supabase functions deploy geo-worker
 
 echo "All functions deployed."
